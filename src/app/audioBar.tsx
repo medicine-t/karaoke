@@ -1,5 +1,7 @@
 import React, { useRef, useEffect, useState } from "react";
 import Note from "@/app/Note";
+import { UST, UST_Setting, USTparser } from "./ustParser";
+import Encoding from "encoding-japanese";
 
 const extractPeak = (
   buffer: Uint8Array,
@@ -143,7 +145,77 @@ function drawStaffNotation(
     if (y < 0) continue;
     if (y > height) continue;
     context.fillStyle = "#a6a6a6";
+    context.font = `${Math.round(
+      logFrequency(Note.getFrequency(noteNum + 1)) -
+        logFrequency(Note.getFrequency(noteNum))
+    )}px serif`;
+    context.fillText((noteNum + 1).toString(), offSetX, height - y + offSetY);
     context.fillRect(offSetX, height - y + offSetY, width, 2);
+  }
+}
+
+/**
+ * USTの情報からノートを描画する。
+ * startTime (ms) から開始したとしてその差分分スクロールされる。
+ * 1f ごとに呼ばれる。
+ */
+function showUSTNote(
+  context: CanvasRenderingContext2D,
+  notes: UST,
+  startTime: number,
+  frequencySetting: { minFrequency: number; maxFrequency: number },
+  canvasSetting: { width: number; height: number },
+  offSet: { offSetX: number; offSetY: number } = { offSetX: 0, offSetY: 0 }
+) {
+  const { minFrequency, maxFrequency } = frequencySetting;
+  const { width, height } = canvasSetting;
+  const { offSetX, offSetY } = offSet;
+
+  const minNoteNum = Note.getNoteNumber(minFrequency);
+  const maxNoteNum = Note.getNoteNumber(maxFrequency);
+  const logFrequency = (freq: number) => {
+    return (
+      ((Math.log(freq) - Math.log(minFrequency)) /
+        (Math.log(maxFrequency) - Math.log(minFrequency))) *
+      height
+    );
+  };
+
+  let Tempo = 120;
+  let pastTime_ms = 0;
+  for (const note of notes.sections) {
+    if (note.name === "SETTING") {
+      Tempo = (note.element as UST_Setting).Tempo;
+    } else if (note.name == "NOTE") {
+      if (note.element.Tempo) Tempo = note.element.Tempo;
+      const noteNum = note.element.NoteNum;
+      const length = note.element.Length / 480;
+      const noteTimeLength = length * (60_000 / Tempo); //このノートの長さ(ms)
+      const noteLength = ((width - offSetX) / 1000) * noteTimeLength; // (width - offSetX)の幅を1000ms で通過する
+      const noteStartPosX =
+        ((width - offSetX) / 1000) * (Date.now() - startTime + pastTime_ms);
+
+      if (noteStartPosX + offSetX < 0 || noteStartPosX + offSetX > width)
+        continue;
+      const y = logFrequency(Note.getFrequency(noteNum));
+      const noteHeight = Math.round(
+        logFrequency(Note.getFrequency(noteNum + 1)) -
+          logFrequency(Note.getFrequency(noteNum))
+      );
+      context.fillStyle = "#b00";
+      context.fillRect(
+        width - noteStartPosX + offSetX,
+        height - y + offSetY,
+        noteLength,
+        13
+      );
+      console.log({
+        x: width - noteStartPosX + offSetX,
+        y: height - y + offSetY,
+        w: noteLength,
+        h: noteHeight,
+      });
+    }
   }
 }
 
@@ -163,6 +235,8 @@ export function AudioBar() {
   const width = window.innerWidth - 100;
   const height = window.innerHeight * 0.8;
 
+  let currentUSTData: UST | undefined = undefined;
+
   useEffect(() => {
     const canvas = canvasRef.current;
     if (canvas == null) return;
@@ -173,6 +247,7 @@ export function AudioBar() {
     setContext(ctx);
   });
 
+  let time = 0;
   const tick = () => {
     if (context != null && analyser != null && audioContext != null) {
       context.clearRect(0, 0, width, height);
@@ -189,6 +264,17 @@ export function AudioBar() {
         { width: 150, height: height },
         { offSetX: 500, offSetY: 0 }
       );
+
+      if (currentUSTData != null) {
+        showUSTNote(
+          context,
+          currentUSTData,
+          time,
+          { minFrequency, maxFrequency },
+          { width, height },
+          { offSetX: 0, offSetY: 0 }
+        );
+      }
       // if (peakRef.current != null) peakRef.current.innerText = noteLog;
       if (pitchRef.current != null) {
         const freq = note.getBaseFrequency();
@@ -213,10 +299,47 @@ export function AudioBar() {
     input.connect(analyser);
 
     tick();
+    time = Date.now();
   };
 
   const onRecordStop = async () => {
     cancelAnimationFrame(animationFrame);
+  };
+
+  const fetchAsText = async (file: File) => {
+    const txt = await new Promise<String>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.addEventListener("load", () => {
+        const codes = new Uint8Array(reader.result as ArrayBuffer);
+        const encoding = Encoding.detect(codes);
+
+        if (encoding == false) {
+          reject("Encoding not detected");
+          return;
+        }
+        const unicodeString = Encoding.convert(codes, {
+          to: "UNICODE",
+          from: encoding,
+          type: "string",
+        });
+        resolve(unicodeString);
+      });
+
+      reader.addEventListener("error", () => {
+        reject(reader.error);
+      });
+
+      reader.readAsArrayBuffer(file);
+    });
+    return txt;
+  };
+
+  const fileChanged = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    console.log(event.target.files);
+    for (const file of event.target.files as FileList) {
+      const text = (await fetchAsText(file)) as string;
+      currentUSTData = USTparser(text);
+    }
   };
 
   return (
@@ -238,6 +361,17 @@ export function AudioBar() {
       <div id="pitch" ref={pitchRef}></div>
       <div>******************************</div>
       <div id="peak" ref={peakRef}></div>
+      <div>
+        <input
+          type="file"
+          id="ustInput"
+          name="ustInput"
+          accept=".ust"
+          onChange={fileChanged}
+        />
+        <p id="tempo"></p>
+        <p id="result"></p>
+      </div>
     </div>
   );
 }
