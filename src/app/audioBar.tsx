@@ -261,6 +261,7 @@ export function AudioBar() {
     ctx.fillStyle = "#fff";
     ctx.fillRect(0, 0, width, height);
     setContext(ctx);
+    drawStaffNotation(ctx, { minFrequency, maxFrequency }, { width, height });
   });
 
   let time = 0;

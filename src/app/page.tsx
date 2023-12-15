@@ -1,14 +1,11 @@
 "use client";
-import React, { useEffect, useRef, useState } from "react";
-import { USTInput } from "./showUST";
+import React from "react";
 import { AudioBar } from "./audioBar";
 
 export default function Home() {
-  // return <AudioFreqChart />;
   return (
     <div>
       <AudioBar />
-      {/* <USTInput /> */}
     </div>
   );
 }
