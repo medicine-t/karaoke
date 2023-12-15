@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState } from "react";
-import Note from "@/app/Note";
+import Note from "@/app/karaoke/Note";
 import { UST, UST_Note, UST_Setting, USTparser } from "./ustParser";
 import Encoding from "encoding-japanese";
 
