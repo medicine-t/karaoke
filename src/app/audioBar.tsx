@@ -77,11 +77,7 @@ function drawFrequencyLogBar(
   }
 
   for (let i = minFrequencyIndex; i < maxFrequencyIndex; i++) {
-    // const h = (buffer[i] / 256) * height;
     const w = (buffer[i] / 256) * width;
-    // const x =
-    //   ((i - minFrequencyIndex) / (maxFrequencyIndex - minFrequencyIndex)) *
-    //   width;
     let y =
       ((Math.log(indexToFrequency(i)) - Math.log(minFrequency)) /
         (Math.log(maxFrequency) - Math.log(minFrequency))) *
@@ -90,6 +86,7 @@ function drawFrequencyLogBar(
     if (!bigWaveFlag && subBuffer[i] / 265 > 0.1) {
       bigWaveFlag = true;
     }
+
     if (
       bigWaveFlag &&
       !bigWaveIndex &&
@@ -106,10 +103,7 @@ function drawFrequencyLogBar(
     if (maxIndex == i && buffer[i] / 256 > 0.4) {
       context.fillStyle = "#0f0"; // green
     }
-    if (Math.abs(indexToFrequency(i) - note.getBaseFrequency()) < 1) {
-      context.fillStyle = "#f00"; // white
-      // context.fillRect(x, 0, 2, height);
-    }
+
     context.fillRect(width - w + offSetX, height - y + offSetY, w, 2);
   }
   context.fillStyle = "#a6a6a6";
@@ -117,7 +111,7 @@ function drawFrequencyLogBar(
   return note;
 }
 
-//https://www.asahi-net.or.jp/~hb9t-ktd/music/Japan/Research/DTM/freq_map.html
+// 参考:  https://www.asahi-net.or.jp/~hb9t-ktd/music/Japan/Research/DTM/freq_map.html
 function drawStaffNotation(
   context: CanvasRenderingContext2D,
   frequencySetting: { minFrequency: number; maxFrequency: number },
@@ -196,7 +190,7 @@ function showUSTNote(
       const noteTimeLength = length * (60_000 / Tempo); //このノートの長さ(ms)
       const xMovePerMs = (width - offSetX) / 10_000; // 1ms あたりの移動量 (width - offSetX)の幅を5000ms で通過する
       const widthBuffer = (width - offSetX) / xMovePerMs; // この値がないとノートタイミング = ノート生成(右に出るタイミング)　になる。調整用
-      const noteLength = xMovePerMs * noteTimeLength; //
+      const noteLength = xMovePerMs * noteTimeLength;
       const noteStartPosX =
         width -
         offSetX -
