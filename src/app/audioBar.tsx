@@ -214,7 +214,7 @@ function showUSTNote(
       console.log(shiftedNoteNum, uts_note.NoteNum, octaveShift);
       context.fillRect(
         Math.max(0, noteStartPosX + offSetX),
-        height - logFrequency(Note.getFrequency(shiftedNoteNum)),
+        height - logFrequency(Note.getFrequency(shiftedNoteNum)) - 5,
         noteLength,
         13
       );
@@ -222,7 +222,7 @@ function showUSTNote(
       context.font = `13px serif`;
 
       context.fillText(
-        note.element.Lyric,
+        (note.element as UST_Note).Lyric,
         noteStartPosX + offSetX - 15,
         height - logFrequency(Note.getFrequency(shiftedNoteNum))
       );
