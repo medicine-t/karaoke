@@ -228,7 +228,6 @@ export function AudioBar() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [context, setContext] = useState<CanvasRenderingContext2D | null>();
   const pitchRef = useRef<HTMLDivElement>(null);
-  const peakRef = useRef<HTMLDivElement>(null);
   const octaveRef = useRef<HTMLInputElement>(null);
   const showLyricsRef = useRef<HTMLInputElement>(null);
 
@@ -305,7 +304,6 @@ export function AudioBar() {
         { width: 150, height: height },
         { offSetX: 0, offSetY: 0 }
       );
-      // if (peakRef.current != null) peakRef.current.innerText = noteLog;
       if (pitchRef.current != null) {
         const freq = note.getBaseFrequency();
         pitchRef.current.innerText = `baseFrequency: ${note.getBaseFrequency()} \n noteNumber: ${Note.getNoteNumber(
@@ -375,6 +373,7 @@ export function AudioBar() {
   const fileChanged = async (event: React.ChangeEvent<HTMLInputElement>) => {
     for (const file of event.target.files as FileList) {
       const text = (await fetchAsText(file)) as string;
+      await onUSTStop();
       currentUSTData = USTparser(text);
     }
   };
@@ -401,6 +400,15 @@ export function AudioBar() {
           UST Stop
         </button>
       </div>
+      <div>
+        <input
+          type="file"
+          id="ustInput"
+          name="ustInput"
+          accept=".ust"
+          onChange={fileChanged}
+        />
+      </div>
       <div id="pitch" ref={pitchRef}></div>
       オクターブずらす :{" "}
       <div id="viewSetting">
@@ -420,18 +428,6 @@ export function AudioBar() {
         /> */}
       </div>
       <div>******************************</div>
-      <div id="peak" ref={peakRef}></div>
-      <div>
-        <input
-          type="file"
-          id="ustInput"
-          name="ustInput"
-          accept=".ust"
-          onChange={fileChanged}
-        />
-        <p id="tempo"></p>
-        <p id="result"></p>
-      </div>
     </div>
   );
 }

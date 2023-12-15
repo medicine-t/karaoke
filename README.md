@@ -1,34 +1,19 @@
-This is a [Next.js](https://nextjs.org/) project bootstrapped with [`create-next-app`](https://github.com/vercel/next.js/tree/canary/packages/create-next-app).
+### 使い方
 
-## Getting Started
+マイクの音声を FFT した結果は Mic Start ボタンを押すことで表示が開始されます。
 
-First, run the development server:
+UST ファイルを読みこんだ状態で、Note Start ボタンを押すと、UST ファイルの内容に従った赤いノーツが流れてきます。
+Stop で再生を終了します。
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-```
+歌ったり、一人で練習するときの参考にしてください。
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### ある機能
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+- ピッチの検出(疑似) とその周波数の表示/ノート番号の表示
+- ノートをオクターブごとに調整すること
 
-This project uses [`next/font`](https://nextjs.org/docs/basic-features/font-optimization) to automatically optimize and load Inter, a custom Google Font.
+### 現在ない機能
 
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js/) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/deployment) for more details.
+- 表示外のノートに合わせた自動調整
+- ノートの一時停止
+- 判定
