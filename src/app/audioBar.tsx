@@ -241,12 +241,14 @@ export function AudioBar() {
   const minFrequency = 87;
   const maxFrequency = 622;
 
-  const width = window.innerWidth - 100;
-  const height = window.innerHeight * 0.8;
+  let width = 1920 - 100;
+  let height = 1080 * 0.8;
 
   let currentUSTData: UST | undefined = undefined;
 
   useEffect(() => {
+    width = window.innerWidth - 100;
+    height = window.innerHeight * 0.8;
     const canvas = canvasRef.current;
     if (canvas == null) return;
     const ctx = canvas.getContext("2d");
