@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useState } from "react";
 import Note from "@/app/Note";
-import { UST, UST_Setting, USTparser } from "./ustParser";
+import { UST, UST_Note, UST_Setting, USTparser } from "./ustParser";
 import Encoding from "encoding-japanese";
 
 const extractPeak = (
@@ -112,6 +112,8 @@ function drawFrequencyLogBar(
     }
     context.fillRect(width - w + offSetX, height - y + offSetY, w, 2);
   }
+  context.fillStyle = "#a6a6a6";
+  context.fillRect(width, 0, 2, height);
   return note;
 }
 
@@ -165,14 +167,14 @@ function showUSTNote(
   startTime: number,
   frequencySetting: { minFrequency: number; maxFrequency: number },
   canvasSetting: { width: number; height: number },
-  offSet: { offSetX: number; offSetY: number } = { offSetX: 0, offSetY: 0 }
+  offSet: { offSetX: number; offSetY: number } = { offSetX: 0, offSetY: 0 },
+  octaveShift?: number,
+  showLyrics?: boolean
 ) {
   const { minFrequency, maxFrequency } = frequencySetting;
   const { width, height } = canvasSetting;
   const { offSetX, offSetY } = offSet;
 
-  const minNoteNum = Note.getNoteNumber(minFrequency);
-  const maxNoteNum = Note.getNoteNumber(maxFrequency);
   const logFrequency = (freq: number) => {
     return (
       ((Math.log(freq) - Math.log(minFrequency)) /
@@ -182,39 +184,48 @@ function showUSTNote(
   };
 
   let Tempo = 120;
-  let pastTime_ms = 0;
+  let sumTime_ms = 0;
+  const now = Date.now();
   for (const note of notes.sections) {
     if (note.name === "SETTING") {
       Tempo = (note.element as UST_Setting).Tempo;
     } else if (note.name == "NOTE") {
       if (note.element.Tempo) Tempo = note.element.Tempo;
-      const noteNum = note.element.NoteNum;
-      const length = note.element.Length / 480;
+      const uts_note = note.element as UST_Note;
+      const length = uts_note.Length / 480;
       const noteTimeLength = length * (60_000 / Tempo); //このノートの長さ(ms)
-      const noteLength = ((width - offSetX) / 1000) * noteTimeLength; // (width - offSetX)の幅を1000ms で通過する
+      const xMovePerMs = (width - offSetX) / 10_000; // 1ms あたりの移動量 (width - offSetX)の幅を5000ms で通過する
+      const widthBuffer = (width - offSetX) / xMovePerMs; // この値がないとノートタイミング = ノート生成(右に出るタイミング)　になる。調整用
+      const noteLength = xMovePerMs * noteTimeLength; //
       const noteStartPosX =
-        ((width - offSetX) / 1000) * (Date.now() - startTime + pastTime_ms);
+        width -
+        offSetX -
+        (now - startTime - sumTime_ms + widthBuffer) * xMovePerMs;
 
+      sumTime_ms += noteTimeLength;
       if (noteStartPosX + offSetX < 0 || noteStartPosX + offSetX > width)
         continue;
-      const y = logFrequency(Note.getFrequency(noteNum));
-      const noteHeight = Math.round(
-        logFrequency(Note.getFrequency(noteNum + 1)) -
-          logFrequency(Note.getFrequency(noteNum))
-      );
+      if (uts_note.Lyric == "R") continue;
+
       context.fillStyle = "#b00";
+      const shiftedNoteNum =
+        parseInt(uts_note.NoteNum.toString()) +
+        parseInt(((octaveShift ?? 0) * 12).toString());
+      console.log(shiftedNoteNum, uts_note.NoteNum, octaveShift);
       context.fillRect(
-        width - noteStartPosX + offSetX,
-        height - y + offSetY,
+        Math.max(0, noteStartPosX + offSetX),
+        height - logFrequency(Note.getFrequency(shiftedNoteNum)),
         noteLength,
         13
       );
-      console.log({
-        x: width - noteStartPosX + offSetX,
-        y: height - y + offSetY,
-        w: noteLength,
-        h: noteHeight,
-      });
+      context.fillStyle = "#000";
+      context.font = `13px serif`;
+
+      context.fillText(
+        note.element.Lyric,
+        noteStartPosX + offSetX - 15,
+        height - logFrequency(Note.getFrequency(shiftedNoteNum))
+      );
     }
   }
 }
@@ -224,10 +235,15 @@ export function AudioBar() {
   const [context, setContext] = useState<CanvasRenderingContext2D | null>();
   const pitchRef = useRef<HTMLDivElement>(null);
   const peakRef = useRef<HTMLDivElement>(null);
+  const octaveRef = useRef<HTMLInputElement>(null);
+  const showLyricsRef = useRef<HTMLInputElement>(null);
 
   let audioContext: AudioContext | undefined = undefined;
   let analyser: AnalyserNode | undefined = undefined;
   let animationFrame = 0;
+  let ust_animationFrame = 0;
+
+  let isUSTNoteShow = false;
 
   const minFrequency = 87;
   const maxFrequency = 622;
@@ -248,23 +264,9 @@ export function AudioBar() {
   });
 
   let time = 0;
-  const tick = () => {
+  const ustNoteTick = () => {
     if (context != null && analyser != null && audioContext != null) {
       context.clearRect(0, 0, width, height);
-      drawStaffNotation(
-        context,
-        { minFrequency, maxFrequency },
-        { width, height }
-      );
-      const note = drawFrequencyLogBar(
-        context,
-        analyser,
-        audioContext,
-        { minFrequency, maxFrequency },
-        { width: 150, height: height },
-        { offSetX: 500, offSetY: 0 }
-      );
-
       if (currentUSTData != null) {
         showUSTNote(
           context,
@@ -272,9 +274,42 @@ export function AudioBar() {
           time,
           { minFrequency, maxFrequency },
           { width, height },
-          { offSetX: 0, offSetY: 0 }
+          { offSetX: 150, offSetY: 0 },
+          octaveRef.current?.valueAsNumber
         );
       }
+
+      ust_animationFrame = requestAnimationFrame(ustNoteTick);
+    }
+  };
+  const notationTick = () => {
+    if (context != null && analyser != null && audioContext != null) {
+      context.clearRect(0, 0, width, height);
+      drawStaffNotation(
+        context,
+        { minFrequency, maxFrequency },
+        { width, height }
+      );
+
+      if (currentUSTData != null && isUSTNoteShow) {
+        showUSTNote(
+          context,
+          currentUSTData,
+          time,
+          { minFrequency, maxFrequency },
+          { width, height },
+          { offSetX: 150, offSetY: 0 },
+          octaveRef.current?.valueAsNumber
+        );
+      }
+      const note = drawFrequencyLogBar(
+        context,
+        analyser,
+        audioContext,
+        { minFrequency, maxFrequency },
+        { width: 150, height: height },
+        { offSetX: 0, offSetY: 0 }
+      );
       // if (peakRef.current != null) peakRef.current.innerText = noteLog;
       if (pitchRef.current != null) {
         const freq = note.getBaseFrequency();
@@ -282,7 +317,7 @@ export function AudioBar() {
           freq
         )}\n${Note.getNoteName(Note.getNoteNumber(freq))}`;
       }
-      animationFrame = requestAnimationFrame(tick);
+      animationFrame = requestAnimationFrame(notationTick);
     }
   };
 
@@ -298,12 +333,20 @@ export function AudioBar() {
     const input = audioContext.createMediaStreamSource(stream);
     input.connect(analyser);
 
-    tick();
+    notationTick();
+  };
+
+  const onUSTStart = async () => {
     time = Date.now();
+    isUSTNoteShow = true;
   };
 
   const onRecordStop = async () => {
     cancelAnimationFrame(animationFrame);
+  };
+
+  const onUSTStop = async () => {
+    isUSTNoteShow = false;
   };
 
   const fetchAsText = async (file: File) => {
@@ -335,7 +378,6 @@ export function AudioBar() {
   };
 
   const fileChanged = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    console.log(event.target.files);
     for (const file of event.target.files as FileList) {
       const text = (await fetchAsText(file)) as string;
       currentUSTData = USTparser(text);
@@ -357,8 +399,31 @@ export function AudioBar() {
         <button id="recordStop" onClick={onRecordStop}>
           Mic Stop
         </button>
+        <button id="ustStart" onClick={onUSTStart}>
+          Note Start
+        </button>
+        <button id="recordStop" onClick={onUSTStop}>
+          UST Stop
+        </button>
       </div>
       <div id="pitch" ref={pitchRef}></div>
+      オクターブずらす :{" "}
+      <div id="viewSetting">
+        <input
+          type="number"
+          id="octave"
+          maxLength={2}
+          defaultValue={0}
+          ref={octaveRef}
+        />
+        {/* <input
+          type="checkbox"
+          id="showLyrics"
+          maxLength={2}
+          defaultChecked={true}
+          ref={showLyricsRef}
+        /> */}
+      </div>
       <div>******************************</div>
       <div id="peak" ref={peakRef}></div>
       <div>
