@@ -1,6 +1,6 @@
 import Encoding from "encoding-japanese";
 import React from "react";
-import { UST, UST_Note, UST_Setting, USTparser } from "@/app/karaoke/ustParser";
+import { UST, UST_Note, UST_Setting, USTparser } from "@/app/ustParser";
 
 //https://w.atwiki.jp/utaou/pages/64.html#id_e7beb30c
 export function USTInput() {
