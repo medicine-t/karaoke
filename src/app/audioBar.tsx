@@ -241,8 +241,8 @@ export function AudioBar() {
   const minFrequency = 87;
   const maxFrequency = 622;
 
-  let width = 1920 - 100;
-  let height = 1080 * 0.8;
+  let width = 1200;
+  let height = 500;
 
   let currentUSTData: UST | undefined = undefined;
 
