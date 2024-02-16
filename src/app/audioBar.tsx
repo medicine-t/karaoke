@@ -153,17 +153,17 @@ function drawStaffNotation(
 /**
  * USTの情報からノートを描画する。
  * startTime (ms) から開始したとしてその差分分スクロールされる。
- * 1f ごとに呼ばれる。
+ * 開始からの経過時間[ms]を受け取る
  */
 function showUSTNote(
   context: CanvasRenderingContext2D,
   notes: UST,
   startTime: number,
+  millisecondFromStart: number = 0,
   frequencySetting: { minFrequency: number; maxFrequency: number },
   canvasSetting: { width: number; height: number },
   offSet: { offSetX: number; offSetY: number } = { offSetX: 0, offSetY: 0 },
-  octaveShift?: number,
-  showLyrics?: boolean
+  octaveShift?: number
 ) {
   const { minFrequency, maxFrequency } = frequencySetting;
   const { width, height } = canvasSetting;
@@ -179,7 +179,6 @@ function showUSTNote(
 
   let Tempo = 120;
   let sumTime_ms = 0;
-  const now = Date.now();
   for (const note of notes.sections) {
     if (note.name === "SETTING") {
       Tempo = (note.element as UST_Setting).Tempo;
@@ -194,7 +193,7 @@ function showUSTNote(
       const noteStartPosX =
         width -
         offSetX -
-        (now - startTime - sumTime_ms + widthBuffer) * xMovePerMs;
+        (millisecondFromStart - sumTime_ms + widthBuffer) * xMovePerMs;
 
       sumTime_ms += noteTimeLength;
       if (noteStartPosX + offSetX < 0 || noteStartPosX + offSetX > width)
@@ -230,19 +229,22 @@ export function AudioBar() {
   const pitchRef = useRef<HTMLDivElement>(null);
   const octaveRef = useRef<HTMLInputElement>(null);
   const showLyricsRef = useRef<HTMLInputElement>(null);
+  const currentSeekBarRef = useRef<HTMLInputElement>(null);
 
   let audioContext: AudioContext | undefined = undefined;
   let analyser: AnalyserNode | undefined = undefined;
   let animationFrame = 0;
   let ust_animationFrame = 0;
 
+  let isPlaying = false;
+
   let isUSTNoteShow = false;
 
   const minFrequency = 87;
   const maxFrequency = 622;
 
-  let width = globalThis.window ? globalThis.window.innerWidth - 100 : 1200;
-  let height = globalThis.window ? globalThis.window.innerHeight * 0.8 : 500;
+  let width = 1200; //globalThis.window ? globalThis.window.innerWidth - 100 : 1200;
+  let height = 500; // globalThis.window ? globalThis.window.innerHeight * 0.8 : 500;
 
   let currentUSTData: UST | undefined = undefined;
 
@@ -258,24 +260,8 @@ export function AudioBar() {
   });
 
   let time = 0;
-  const ustNoteTick = () => {
-    if (context != null && analyser != null && audioContext != null) {
-      context.clearRect(0, 0, width, height);
-      if (currentUSTData != null) {
-        showUSTNote(
-          context,
-          currentUSTData,
-          time,
-          { minFrequency, maxFrequency },
-          { width, height },
-          { offSetX: 150, offSetY: 0 },
-          octaveRef.current?.valueAsNumber
-        );
-      }
+  let progressTime = time;
 
-      ust_animationFrame = requestAnimationFrame(ustNoteTick);
-    }
-  };
   const notationTick = () => {
     if (context != null && analyser != null && audioContext != null) {
       context.clearRect(0, 0, width, height);
@@ -285,11 +271,15 @@ export function AudioBar() {
         { width, height }
       );
 
-      if (currentUSTData != null && isUSTNoteShow) {
+      if (currentUSTData != null) {
+        if (isPlaying) {
+          progressTime = Date.now() - time;
+        }
         showUSTNote(
           context,
           currentUSTData,
           time,
+          progressTime,
           { minFrequency, maxFrequency },
           { width, height },
           { offSetX: 150, offSetY: 0 },
@@ -332,14 +322,18 @@ export function AudioBar() {
   const onUSTStart = async () => {
     time = Date.now();
     isUSTNoteShow = true;
+    isPlaying = true;
   };
 
   const onRecordStop = async () => {
     cancelAnimationFrame(animationFrame);
   };
 
+  const onUSTResume = async () => {
+    isPlaying = true;
+  };
   const onUSTStop = async () => {
-    isUSTNoteShow = false;
+    isPlaying = false;
   };
 
   const fetchAsText = async (file: File) => {
@@ -395,6 +389,9 @@ export function AudioBar() {
         </button>
         <button id="ustStart" onClick={onUSTStart}>
           Note Start
+        </button>
+        <button id="recordResume" onClick={onUSTResume}>
+          UST Resume
         </button>
         <button id="recordStop" onClick={onUSTStop}>
           UST Stop
